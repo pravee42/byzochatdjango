@@ -2,8 +2,8 @@ import json
 from datetime import datetime
 from asgiref.sync import async_to_sync
 from channels.generic.websocket import WebsocketConsumer
-from chat.models import Room, Chats
-from chat.serializers import ChatsSerializer
+from chat.models import Room, Chats, AdminRoom
+from chat.serializers import ChatsSerializer, RoomSerializer, ARSerializer
 
 class ChatConsumer(WebsocketConsumer):
     def connect(self):
@@ -16,20 +16,32 @@ class ChatConsumer(WebsocketConsumer):
                 room.is_user_active = True
                 room.user_lastactive = datetime.now()
                 room.save()
-            except Room.DoesNotExist:
-                Room.objects.create(user_id=self.user_id, is_user_active=True, user_lastactive=datetime.now())
-                data = {
-                    "user_id": self.user_id,
-                    "is_user_active": True
-                }
+                r = Room.objects.all()
+                data = RoomSerializer(r, many=True)
+                a = AdminRoom.objects.all().order_by('-id').first()
                 async_to_sync(self.channel_layer.group_add)(
-                    "0", "0"
+                    a.room, "0"
                 )
                 async_to_sync(self.channel_layer.group_send)(
-                    "0", {"type": "chat1.message", "message": data}
+                    a.room, {"type": "chat1.message", "message": data.data}
                 )
                 async_to_sync(self.channel_layer.group_discard)(
-                      "0", "0"
+                      a.room, "0"
+                )   
+            except Room.DoesNotExist:
+                Room.objects.create(user_id=self.user_id, is_user_active=True, user_lastactive=datetime.now())
+                r = Room.objects.all()
+                data = RoomSerializer(r, many=True)
+                a = AdminRoom.objects.all().order_by('-id').first()
+                print(a.room)
+                async_to_sync(self.channel_layer.group_add)(
+                    a.room, "0"
+                )
+                async_to_sync(self.channel_layer.group_send)(
+                    a.room, {"type": "chat1.message", "message": data.data}
+                )
+                async_to_sync(self.channel_layer.group_discard)(
+                      a.room, "0"
                 )   
         elif self.user_id == "0":
             try:
@@ -39,13 +51,12 @@ class ChatConsumer(WebsocketConsumer):
                 room.save()
             except:
                 pass
+            a = AdminRoom.objects.create(room=self.room_id)
         self.accept()
         
         async_to_sync(self.channel_layer.group_add)(
             self.room_id, self.channel_name
         )
-
-
         
     def disconnect(self, close_code):
         if self.user_id != "0":
@@ -62,7 +73,21 @@ class ChatConsumer(WebsocketConsumer):
                 room.save()
             except Room.DoesNotExist:
                 pass
-       
+        a = AdminRoom.objects.all().order_by('-id').first()
+        r = Room.objects.all()
+        data = RoomSerializer(r, many=True)
+        async_to_sync(self.channel_layer.group_add)(
+            "0", "0"
+        )
+        async_to_sync(self.channel_layer.group_send)(
+            a.room, {"type": "chat1.message", "message": data.data}
+        )
+        async_to_sync(self.channel_layer.group_discard)(
+                a.room, "0"
+        )
+        async_to_sync(self.channel_layer.group_send)(
+                    a.room, {"type": "chat1.message", "message": data.data}
+                )   
         async_to_sync(self.channel_layer.group_discard)(
             self.room_id, self.channel_name
         )

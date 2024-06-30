@@ -1,5 +1,4 @@
 from django.db import models
-from users.models import User
 
 class Room(models.Model):
     user_id = models.CharField(max_length=250)
@@ -19,4 +18,8 @@ class Chats(models.Model):
     seen = models.BooleanField(default=False)
     seen_time_stamp = models.CharField(max_length=250, blank=True)
     
+class AdminRoom(models.Model):
+    room=models.CharField(max_length=250, blank=True)
     
+    def __str__(self):
+        return self.room
